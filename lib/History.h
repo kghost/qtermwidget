@@ -35,7 +35,9 @@
 #include "Character.h"
 
 // map
+#ifdef HAVE_MMAP
 #include <sys/mman.h>
+#endif // HAVE_MMAP
 
 namespace Konsole
 {
@@ -64,7 +66,6 @@ public:
 
 
 private:
-  int  ion;
   int  length;
   QTemporaryFile tmpFile;
 
@@ -293,16 +294,16 @@ public:
 
   CompactHistoryBlock(){
     blockLength = 4096*64; // 256kb
-    head = (quint8*) mmap(0, blockLength, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANON, -1, 0);
-    //head = (quint8*) malloc(blockLength);
-    Q_ASSERT(head != MAP_FAILED);
+	blockFile.open();
+	blockFile.resize(blockLength);
+	head = (quint8*)blockFile.map(0, blockLength, QFileDevice::MapPrivateOption);
+    Q_ASSERT(head != 0);
     tail = blockStart = head;
     allocCount=0;
   }
 
   virtual ~CompactHistoryBlock(){
-    //free(blockStart);
-    munmap(blockStart, blockLength);
+    blockFile.unmap(blockStart);
   }
 
   virtual unsigned int remaining(){ return blockStart+blockLength-tail;}
@@ -314,6 +315,7 @@ public:
 
 private:
   size_t blockLength;
+  QTemporaryFile blockFile;
   quint8* head;
   quint8* tail;
   quint8* blockStart;

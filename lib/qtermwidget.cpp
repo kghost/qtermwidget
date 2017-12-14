@@ -188,28 +188,8 @@ void QTermWidget::noMatchFound()
         m_impl->m_terminalDisplay->screenWindow()->clearSelection();
 }
 
-int QTermWidget::getShellPID()
-{
-    return m_impl->m_session->processId();
-}
-
 void QTermWidget::changeDir(const QString & dir)
 {
-    /*
-       this is a very hackish way of trying to determine if the shell is in
-       the foreground before attempting to change the directory.  It may not
-       be portable to anything other than Linux.
-    */
-    QString strCmd;
-    strCmd.setNum(getShellPID());
-    strCmd.prepend("ps -j ");
-    strCmd.append(" | tail -1 | awk '{ print $5 }' | grep -q \\+");
-    int retval = system(strCmd.toStdString().c_str());
-
-    if (!retval) {
-        QString cmd = "cd " + dir + "\n";
-        sendText(cmd);
-    }
 }
 
 QSize QTermWidget::sizeHint() const
@@ -240,18 +220,6 @@ void QTermWidget::startShellProgram()
     }
 
     m_impl->m_session->run();
-}
-
-void QTermWidget::startTerminalTeletype()
-{
-    if ( m_impl->m_session->isRunning() ) {
-        return;
-    }
-
-    m_impl->m_session->runEmptyPTY();
-    // redirect data from TTY to external recipient
-    connect( m_impl->m_session->emulation(), SIGNAL(sendData(const char *,int)),
-             this, SIGNAL(sendData(const char *,int)) );
 }
 
 void QTermWidget::init(int startnow)
@@ -613,7 +581,7 @@ void QTermWidget::setFlowControlWarningEnabled(bool enabled)
 
 void QTermWidget::setEnvironment(const QStringList& environment)
 {
-    m_impl->m_session->setEnvironment(environment);
+    //m_impl->m_session->setEnvironment(environment);
 }
 
 void QTermWidget::setMotionAfterPasting(int action)
@@ -691,11 +659,6 @@ Filter::HotSpot* QTermWidget::getHotSpotAt(int row, int column) const
 QList<QAction*> QTermWidget::filterActions(const QPoint& position)
 {
     return m_impl->m_terminalDisplay->filterActions(position);
-}
-
-int QTermWidget::getPtySlaveFd() const
-{
-    return m_impl->m_session->getPtySlaveFd();
 }
 
 void QTermWidget::setKeyboardCursorShape(KeyboardCursorShape shape)

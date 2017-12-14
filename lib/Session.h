@@ -36,7 +36,7 @@ class KProcess;
 namespace Konsole {
 
 class Emulation;
-class Pty;
+class Target;
 class TerminalDisplay;
 //class ZModemDialog;
 
@@ -56,7 +56,6 @@ class Session : public QObject {
 
 public:
     Q_PROPERTY(QString name READ nameTitle)
-    Q_PROPERTY(int processId READ processId)
     Q_PROPERTY(QString keyBindings READ keyBindings WRITE setKeyBindings)
     Q_PROPERTY(QSize size READ size WRITE setSize)
 
@@ -125,18 +124,6 @@ public:
      */
     Emulation * emulation() const;
 
-    /**
-     * Returns the environment of this session as a list of strings like
-     * VARIABLE=VALUE
-     */
-    QStringList environment() const;
-    /**
-     * Sets the environment for this session.
-     * @p environment should be a list of strings like
-     * VARIABLE=VALUE
-     */
-    void setEnvironment(const QStringList & environment);
-
     /** Returns the unique ID for this session. */
     int sessionId() const;
 
@@ -171,12 +158,6 @@ public:
     void setTabTitleFormat(TabTitleContext context , const QString & format);
     /** Returns the format used by this session for tab titles. */
     QString tabTitleFormat(TabTitleContext context) const;
-
-
-    /** Returns the arguments passed to the shell process when run() is called. */
-    QStringList arguments() const;
-    /** Returns the program name of the shell process started when run() is called. */
-    QString program() const;
 
     /**
      * Sets the command line arguments which the session's program will be passed when
@@ -289,9 +270,6 @@ public:
     /** Specifies whether a utmp entry should be created for the pty used by this session. */
     void setAddToUtmp(bool);
 
-    /** Sends the specified @p signal to the terminal process. */
-    bool sendSignal(int signal);
-
     /**
      * Specifies whether to close the session automatically when the terminal
      * process terminates.
@@ -313,19 +291,6 @@ public:
      * Sends @p text to the current foreground terminal program.
      */
     void sendText(const QString & text) const;
-
-    /**
-     * Returns the process id of the terminal process.
-     * This is the id used by the system API to refer to the process.
-     */
-    int processId() const;
-
-    /**
-     * Returns the process id of the terminal's foreground process.
-     * This is initially the same as processId() but can change
-     * as the user starts other programs inside the terminal.
-     */
-    int foregroundProcessId() const;
 
     /** Returns the terminal session's window size in lines and columns. */
     QSize size();
@@ -366,13 +331,6 @@ public:
 //  void cancelZModem();
 //  bool isZModemBusy() { return _zmodemBusy; }
 
-    /**
-     * Returns a pty slave file descriptor.
-     * This can be used for display and control
-     * a remote terminal.
-     */
-    int getPtySlaveFd() const;
-
 public slots:
 
     /**
@@ -381,13 +339,6 @@ public slots:
      * This creates the terminal process and connects the teletype to it.
      */
     void run();
-
-    /**
-     * Starts the terminal session for "as is" PTY
-     * (without the direction a data to internal terminal process).
-     * It can be used for control or display a remote/external terminal.
-     */
-    void runEmptyPTY();
 
     /**
      * Closes the terminal session.  This sends a hangup signal
@@ -514,7 +465,7 @@ private:
 
     int            _uniqueIdentifier;
 
-    Pty     *_shellProcess;
+	Target     *  _target;
     Emulation  *  _emulation;
 
     QList<TerminalDisplay *> _views;
@@ -539,14 +490,12 @@ private:
     QString        _iconName;
     QString        _iconText; // as set by: echo -en '\033]1;IconText\007
     bool           _isTitleChanged; ///< flag if the title/icon was changed by user
-    bool           _addToUtmp;
     bool           _flowControl;
     bool           _fullScripting;
 
     QString        _program;
     QStringList    _arguments;
 
-    QStringList    _environment;
     int            _sessionId;
 
     QString        _initialWorkingDir;
@@ -565,9 +514,6 @@ private:
     bool _hasDarkBackground;
 
     static int lastSessionId;
-
-    int ptySlaveFd;
-
 };
 
 /**

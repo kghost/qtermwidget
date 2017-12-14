@@ -38,8 +38,7 @@
 #include <QFile>
 #include <QtDebug>
 
-#include "Pty.h"
-//#include "kptyprocess.h"
+#include "TargetPtyTcp.h"
 #include "TerminalDisplay.h"
 #include "ShellCommand.h"
 #include "Vt102Emulation.h"
@@ -50,7 +49,7 @@ int Session::lastSessionId = 0;
 
 Session::Session(QObject* parent) :
     QObject(parent),
-        _shellProcess(0)
+        _target(nullptr)
         , _emulation(0)
         , _monitorActivity(false)
         , _monitorSilence(false)
@@ -59,11 +58,6 @@ Session::Session(QObject* parent) :
         , _wantedClose(false)
         , _silenceSeconds(10)
         , _isTitleChanged(false)
-        , _addToUtmp(false)  // disabled by default because of a bug encountered on certain systems
-        // which caused Konsole to hang when closing a tab and then opening a new
-        // one.  A 'QProcess destroyed while still running' warning was being
-        // printed to the terminal.  Likely a problem in KPty::logout()
-        // or KPty::login() which uses a QProcess to start /usr/bin/utempter
         , _flowControl(true)
         , _fullScripting(false)
         , _sessionId(0)
@@ -78,8 +72,7 @@ Session::Session(QObject* parent) :
 //    QDBusConnection::sessionBus().registerObject(QLatin1String("/Sessions/")+QString::number(_sessionId), this);
 
     //create teletype for I/O with shell process
-    _shellProcess = new Pty();
-    ptySlaveFd = _shellProcess->pty()->slaveFd();
+    _target = new TargetPtyTcp();
 
     //create emulation backend
     _emulation = new Vt102Emulation();
@@ -103,16 +96,16 @@ Session::Session(QObject* parent) :
             this, &Session::cursorChanged);
 
     //connect teletype to emulation backend
-    _shellProcess->setUtf8Mode(_emulation->utf8());
+    _target->setUtf8Mode(_emulation->utf8());
 
-    connect( _shellProcess,SIGNAL(receivedData(const char *,int)),this,
+    connect( _target,SIGNAL(receivedData(const char *,int)),this,
              SLOT(onReceiveBlock(const char *,int)) );
-    connect( _emulation,SIGNAL(sendData(const char *,int)),_shellProcess,
+    connect( _emulation,SIGNAL(sendData(const char *,int)), _target,
              SLOT(sendData(const char *,int)) );
-    connect( _emulation,SIGNAL(lockPtyRequest(bool)),_shellProcess,SLOT(lockPty(bool)) );
-    connect( _emulation,SIGNAL(useUtf8Request(bool)),_shellProcess,SLOT(setUtf8Mode(bool)) );
+    connect( _emulation,SIGNAL(lockPtyRequest(bool)), _target,SLOT(lockPty(bool)) );
+    connect( _emulation,SIGNAL(useUtf8Request(bool)), _target,SLOT(setUtf8Mode(bool)) );
 
-    connect( _shellProcess,SIGNAL(finished(int,QProcess::ExitStatus)), this, SLOT(done(int)) );
+    connect( _target,SIGNAL(finished()), this, SLOT(done()) );
     // not in kprocess anymore connect( _shellProcess,SIGNAL(done(int)), this, SLOT(done(int)) );
 
     //setup timer for monitoring session activity
@@ -140,7 +133,7 @@ bool Session::hasDarkBackground() const
 }
 bool Session::isRunning() const
 {
-    return _shellProcess->state() == QProcess::Running;
+    return _target->isRunning();
 }
 
 void Session::setCodec(QTextCodec * codec)
@@ -243,91 +236,28 @@ void Session::removeView(TerminalDisplay * widget)
 
 void Session::run()
 {
-    // Upon a KPty error, there is no description on what that error was...
-    // Check to see if the given program is executable.
-
-    /* ok iam not exactly sure where _program comes from - however it was set to /bin/bash on my system
-     * Thats bad for BSD as its /usr/local/bin/bash there - its also bad for arch as its /usr/bin/bash there too!
-     * So i added a check to see if /bin/bash exists - if no then we use $SHELL - if that does not exist either, we fall back to /bin/sh
-     * As far as i know /bin/sh exists on every unix system.. You could also just put some ifdef __FREEBSD__ here but i think these 2 filechecks are worth
-     * their computing time on any system - especially with the problem on arch linux beeing there too.
-     */
-    QString exec = QFile::encodeName(_program);
-    // if 'exec' is not specified, fall back to default shell.  if that
-    // is not set then fall back to /bin/sh
-
-    // here we expect full path. If there is no fullpath let's expect it's
-    // a custom shell (eg. python, etc.) available in the PATH.
-    if (exec.startsWith("/") || exec.isEmpty())
-    {
-        const QString defaultShell{"/bin/sh"};
-
-        QFile excheck(exec);
-        if ( exec.isEmpty() || !excheck.exists() ) {
-            exec = getenv("SHELL");
-        }
-        excheck.setFileName(exec);
-
-        if ( exec.isEmpty() || !excheck.exists() ) {
-            qWarning() << "Neither default shell nor $SHELL is set to a correct path. Fallback to" << defaultShell;
-            exec = defaultShell;
-        }
-    }
-
-    // _arguments sometimes contain ("") so isEmpty()
-    // or count() does not work as expected...
-    QString argsTmp(_arguments.join(" ").trimmed());
-    QStringList arguments;
-    arguments << exec;
-    if (argsTmp.length())
-        arguments << _arguments;
-
-    QString cwd = QDir::currentPath();
-    if (!_initialWorkingDir.isEmpty()) {
-        _shellProcess->setWorkingDirectory(_initialWorkingDir);
-    } else {
-        _shellProcess->setWorkingDirectory(cwd);
-    }
-
-    _shellProcess->setFlowControlEnabled(_flowControl);
-    _shellProcess->setErase(_emulation->eraseChar());
+    _target->setFlowControlEnabled(_flowControl);
 
     // this is not strictly accurate use of the COLORFGBG variable.  This does not
     // tell the terminal exactly which colors are being used, but instead approximates
     // the color scheme as "black on white" or "white on black" depending on whether
     // the background color is deemed dark or not
-    QString backgroundColorHint = _hasDarkBackground ? "COLORFGBG=15;0" : "COLORFGBG=0;15";
+    auto backgroundColorHint = QStringList(_hasDarkBackground ? "COLORFGBG=15;0" : "COLORFGBG=0;15");
 
     /* if we do all the checking if this shell exists then we use it ;)
      * Dont know about the arguments though.. maybe youll need some more checking im not sure
      * However this works on Arch and FreeBSD now.
      */
-    int result = _shellProcess->start(exec,
-                                      arguments,
-                                      _environment << backgroundColorHint,
-                                      windowId(),
-                                      _addToUtmp);
+    int result = _target->start(_emulation,
+                                backgroundColorHint,
+                                windowId());
 
     if (result < 0) {
         qDebug() << "CRASHED! result: " << result;
         return;
     }
 
-    _shellProcess->setWriteable(false);  // We are reachable via kwrited.
-    emit started();
-}
-
-void Session::runEmptyPTY()
-{
-    _shellProcess->setFlowControlEnabled(_flowControl);
-    _shellProcess->setErase(_emulation->eraseChar());
-    _shellProcess->setWriteable(false);
-
-    // disconnet send data from emulator to internal terminal process
-    disconnect( _emulation,SIGNAL(sendData(const char *,int)),
-                _shellProcess, SLOT(sendData(const char *,int)) );
-
-    _shellProcess->setEmptyPTYProperties();
+	_target->setWriteable(false);  // We are reachable via kwrited.
     emit started();
 }
 
@@ -515,7 +445,7 @@ void Session::updateTerminalSize()
     // backend emulation must have a _terminal of at least 1 column x 1 line in size
     if ( minLines > 0 && minColumns > 0 ) {
         _emulation->setImageSize( minLines , minColumns );
-        _shellProcess->setWindowSize( minLines , minColumns );
+		_target->setWindowSize( minLines , minColumns );
     }
 }
 
@@ -535,29 +465,29 @@ void Session::refresh()
     // if there is a more 'correct' way to do this, please
     // send an email with method or patches to konsole-devel@kde.org
 
-    const QSize existingSize = _shellProcess->windowSize();
-    _shellProcess->setWindowSize(existingSize.height(),existingSize.width()+1);
-    _shellProcess->setWindowSize(existingSize.height(),existingSize.width());
+    const QSize existingSize = _target->windowSize();
+	_target->setWindowSize(existingSize.height(),existingSize.width()+1);
+	_target->setWindowSize(existingSize.height(),existingSize.width());
 }
 
-bool Session::sendSignal(int signal)
-{
-    int result = ::kill(_shellProcess->pid(),signal);
-
-     if ( result == 0 )
-     {
-         _shellProcess->waitForFinished();
-         return true;
-     }
-     else
-         return false;
-}
+//bool Session::sendSignal(int signal)
+//{
+//    int result = ::kill(_shellProcess->pid(),signal);
+//
+//     if ( result == 0 )
+//     {
+//         _shellProcess->waitForFinished();
+//         return true;
+//     }
+//     else
+//         return false;
+//}
 
 void Session::close()
 {
     _autoClose = true;
     _wantedClose = true;
-    if (!_shellProcess->isRunning() || !sendSignal(SIGHUP)) {
+    if (!_target->isRunning()/* || !sendSignal(SIGHUP)*/) {
         // Forced close.
         QTimer::singleShot(1, this, SIGNAL(finished()));
     }
@@ -571,7 +501,7 @@ void Session::sendText(const QString & text) const
 Session::~Session()
 {
     delete _emulation;
-    delete _shellProcess;
+    delete _target;
 //  delete _zmodemProc;
 }
 
@@ -593,23 +523,7 @@ void Session::done(int exitStatus)
         return;
     }
 
-    QString message;
-    if (!_wantedClose || exitStatus != 0) {
-
-        if (_shellProcess->exitStatus() == QProcess::NormalExit) {
-            message.sprintf("Session '%s' exited with status %d.",
-                          _nameTitle.toUtf8().data(), exitStatus);
-        } else {
-            message.sprintf("Session '%s' crashed.",
-                          _nameTitle.toUtf8().data());
-        }
-    }
-
-    if ( !_wantedClose && _shellProcess->exitStatus() != QProcess::NormalExit )
-        message.sprintf("Session '%s' exited unexpectedly.",
-                        _nameTitle.toUtf8().data());
-    else
-        emit finished();
+    if (_wantedClose) emit finished();
 
 }
 
@@ -621,16 +535,6 @@ Emulation * Session::emulation() const
 QString Session::keyBindings() const
 {
     return _emulation->keyBindings();
-}
-
-QStringList Session::environment() const
-{
-    return _environment;
-}
-
-void Session::setEnvironment(const QStringList & environment)
-{
-    _environment = environment;
 }
 
 int Session::sessionId() const
@@ -711,16 +615,6 @@ void Session::clearHistory()
     _emulation->clearHistory();
 }
 
-QStringList Session::arguments() const
-{
-    return _arguments;
-}
-
-QString Session::program() const
-{
-    return _program;
-}
-
 // unused currently
 bool Session::isMonitorActivity() const
 {
@@ -764,11 +658,6 @@ void Session::setMonitorSilenceSeconds(int seconds)
     }
 }
 
-void Session::setAddToUtmp(bool set)
-{
-    _addToUtmp = set;
-}
-
 void Session::setFlowControlEnabled(bool enabled)
 {
     if (_flowControl == enabled) {
@@ -777,8 +666,8 @@ void Session::setFlowControlEnabled(bool enabled)
 
     _flowControl = enabled;
 
-    if (_shellProcess) {
-        _shellProcess->setFlowControlEnabled(_flowControl);
+    if (_target) {
+		_target->setFlowControlEnabled(_flowControl);
     }
 
     emit flowControlEnabledChanged(enabled);
@@ -918,18 +807,6 @@ void Session::setSize(const QSize & size)
     }
 
     emit resizeRequest(size);
-}
-int Session::foregroundProcessId() const
-{
-    return _shellProcess->foregroundProcessGroup();
-}
-int Session::processId() const
-{
-    return _shellProcess->pid();
-}
-int Session::getPtySlaveFd() const
-{
-    return ptySlaveFd;
 }
 
 SessionGroup::SessionGroup()

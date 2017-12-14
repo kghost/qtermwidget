@@ -32,6 +32,7 @@ endif()
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 
 find_package(Qt5Widgets "${REQUIRED_QT_VERSION}" REQUIRED)
+find_package(Qt5Network "${REQUIRED_QT_VERSION}" REQUIRED)
 find_package(Qt5LinguistTools "${REQUIRED_QT_VERSION}" REQUIRED)
 find_package(lxqt-build-tools ${LXQTBT_MINIMUM_VERSION} REQUIRED)
 include(LXQtTranslateTs)
@@ -47,8 +48,41 @@ if(USE_UTF8PROC)
 endif()
 
 # main library
+CHECK_INCLUDE_FILE(sys/mman.h HAVE_MMAP)
+if(HAVE_MMAP)
+    target_compile_definitions(${QTERMWIDGET_LIBRARY_NAME}
+        PUBLIC
+            HAVE_MMAP
+    )
+endif()
+CHECK_INCLUDE_FILE(sys/param.h HAVE_PARAM_H)
+CHECK_INCLUDE_FILE(unistd.h HAVE_UNISTD_H)
 
+if(WIN32)
 set(SRCS
+    lib/TargetPtyTcp.cpp
+)
+set(HDRS
+    lib/TargetPtyTcp.h
+    lib/Target.h
+)
+else()
+set(SRCS
+    lib/kprocess.cpp
+    lib/kpty.cpp
+    lib/kptydevice.cpp
+    lib/kptyprocess.cpp
+    lib/Pty.cpp
+)
+set(HDRS
+    lib/kprocess.h
+    lib/kptydevice.h
+    lib/kptyprocess.h
+    lib/Pty.h
+)
+endif()
+
+list(APPEND SRCS
     lib/BlockArray.cpp
     lib/ColorScheme.cpp
     lib/Emulation.cpp
@@ -57,11 +91,6 @@ set(SRCS
     lib/HistorySearch.cpp
     lib/KeyboardTranslator.cpp
     lib/konsole_wcwidth.cpp
-    lib/kprocess.cpp
-    lib/kpty.cpp
-    lib/kptydevice.cpp
-    lib/kptyprocess.cpp
-    lib/Pty.cpp
     lib/qtermwidget.cpp
     lib/Screen.cpp
     lib/ScreenWindow.cpp
@@ -75,14 +104,10 @@ set(SRCS
 )
 
 # Only the Headers that need to be moc'd go here
-set(HDRS
+list(APPEND HDRS
     lib/Emulation.h
     lib/Filter.h
     lib/HistorySearch.h
-    lib/kprocess.h
-    lib/kptydevice.h
-    lib/kptyprocess.h
-    lib/Pty.h
     lib/qtermwidget.h
     lib/ScreenWindow.h
     lib/SearchBar.h
@@ -119,6 +144,7 @@ CHECK_FUNCTION_EXISTS(updwtmpx HAVE_UPDWTMPX)
 qt5_wrap_cpp(MOCS ${HDRS})
 qt5_wrap_ui(UI_SRCS ${UI})
 set(PKG_CONFIG_REQ "Qt5Widgets")
+set(PKG_CONFIG_REQ "Qt5Network")
 
 lxqt_translate_ts(QTERMWIDGET_QM
     TRANSLATION_DIR "lib/translations"
@@ -142,6 +168,7 @@ lxqt_translate_ts(QTERMWIDGET_QM
 
 add_library(${QTERMWIDGET_LIBRARY_NAME} SHARED ${SRCS} ${MOCS} ${UI_SRCS} ${QTERMWIDGET_QM})
 target_link_libraries(${QTERMWIDGET_LIBRARY_NAME} Qt5::Widgets)
+target_link_libraries(${QTERMWIDGET_LIBRARY_NAME} Qt5::Network)
 set_target_properties( ${QTERMWIDGET_LIBRARY_NAME} PROPERTIES
                        SOVERSION ${QTERMWIDGET_VERSION_MAJOR}
                        VERSION ${QTERMWIDGET_VERSION}
@@ -179,8 +206,8 @@ if (UTF8PROC_FOUND)
             "HAVE_UTF8PROC"
     )
     target_include_directories(${QTERMWIDGET_LIBRARY_NAME}
-        INTERFACE
-            ${UTF8PROC_INCLUDE_DIRS}
+        PRIVATE
+            ${UTF8PROC_INCLUDE_DIR}
     )
     target_link_libraries(${QTERMWIDGET_LIBRARY_NAME}
         ${UTF8PROC_LIBRARIES}

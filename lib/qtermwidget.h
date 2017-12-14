@@ -67,15 +67,6 @@ public:
     //start shell program if it was not started in constructor
     void startShellProgram();
 
-    /**
-     * Start terminal teletype as is
-     * and redirect data for external recipient.
-     * It can be used for display and control a remote terminal.
-     */
-    void startTerminalTeletype();
-
-    int getShellPID();
-
     void changeDir(const QString & dir);
 
     //look-n-feel, if you don`t like defaults
@@ -187,13 +178,6 @@ public:
      * Proxy for TerminalDisplay::filterActions
      * */
     QList<QAction*> filterActions(const QPoint& position);
-
-    /**
-     * Returns a pty slave file descriptor.
-     * This can be used for display and control
-     * a remote terminal.
-     */
-    int getPtySlaveFd() const;
 
     /**
      * Sets the shape of the keyboard cursor.  This is the cursor drawn

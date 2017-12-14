@@ -26,8 +26,12 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <sys/types.h>
+#ifdef HAVE_MMAP
 #include <sys/mman.h>
+#endif // HAVE_MMAP
+#ifdef HAVE_UNISTD_H
 #include <unistd.h>
+#endif // HAVE_UNISTD_H
 #include <errno.h>
 
 #include <QtDebug>
@@ -87,14 +91,12 @@ FIXME: There is noticeable decrease in speed, also. Perhaps,
 */
 
 HistoryFile::HistoryFile()
-  : ion(-1),
-    length(0),
+  : length(0),
     fileMap(0)
 {
   if (tmpFile.open())
   {
     tmpFile.setAutoRemove(true);
-    ion = tmpFile.handle();
   }
 }
 
@@ -109,12 +111,13 @@ HistoryFile::~HistoryFile()
 //to avoid this.
 void HistoryFile::map()
 {
-    Q_ASSERT( fileMap == 0 );
+	Q_ASSERT(fileMap == 0);
 
-    fileMap = (char*)mmap( 0 , length , PROT_READ , MAP_PRIVATE , ion , 0 );
+	tmpFile.resize(length);
+	fileMap = (char*)tmpFile.map( 0 , length , QFileDevice::MapPrivateOption );
 
     //if mmap'ing fails, fall back to the read-lseek combination
-    if ( fileMap == MAP_FAILED )
+    if ( fileMap == nullptr )
     {
             readWriteBalance = 0;
             fileMap = 0;
@@ -124,7 +127,7 @@ void HistoryFile::map()
 
 void HistoryFile::unmap()
 {
-    int result = munmap( fileMap , length );
+    int result = tmpFile.unmap( (uchar*)fileMap );
     Q_ASSERT( result == 0 ); Q_UNUSED( result );
 
     fileMap = 0;
@@ -144,8 +147,8 @@ void HistoryFile::add(const unsigned char* bytes, int len)
 
   int rc = 0;
 
-  rc = KDE_lseek(ion,length,SEEK_SET); if (rc < 0) { perror("HistoryFile::add.seek"); return; }
-  rc = write(ion,bytes,len);       if (rc < 0) { perror("HistoryFile::add.write"); return; }
+  if (!tmpFile.seek(length)) { perror("HistoryFile::add.seek"); return; }
+  rc = tmpFile.write((const char *)bytes,len);       if (rc < 0) { perror("HistoryFile::add.write"); return; }
   length += rc;
 }
 
@@ -170,8 +173,8 @@ void HistoryFile::get(unsigned char* bytes, int len, int loc)
 
       if (loc < 0 || len < 0 || loc + len > length)
         fprintf(stderr,"getHist(...,%d,%d): invalid args.\n",len,loc);
-      rc = KDE_lseek(ion,loc,SEEK_SET); if (rc < 0) { perror("HistoryFile::get.seek"); return; }
-      rc = read(ion,bytes,len);     if (rc < 0) { perror("HistoryFile::get.read"); return; }
+      if (!tmpFile.seek(loc)) { perror("HistoryFile::get.seek"); return; }
+      rc = tmpFile.read((char*)bytes,len);     if (rc < 0) { perror("HistoryFile::get.read"); return; }
   }
 }
 

@@ -23,7 +23,11 @@
 #ifndef BLOCKARRAY_H
 #define BLOCKARRAY_H
 
+#include <QTemporaryFile>
+
+#ifdef HAVE_UNISTD_H
 #include <unistd.h>
+#endif
 
 //#error Do not use in KDE 2.1
 
@@ -116,11 +120,12 @@ private:
     size_t current;
     size_t index;
 
+	QTemporaryFile * lastmapFile;
     Block * lastmap;
     size_t lastmap_index;
     Block * lastblock;
 
-    int ion;
+    QFile * file;
     size_t length;
 
 };

@@ -27,15 +27,22 @@
 #include "BlockArray.h"
 
 // System
+#ifdef HAVE_MMAP
 #include <sys/mman.h>
+#endif // HAVE_MMAP
+#ifdef HAVE_PARAM_H
 #include <sys/param.h>
+#endif // HAVE_PARAM_H
+#ifdef HAVE_UNISTD_H
 #include <unistd.h>
+#endif // HAVE_UNISTD_H
+#include <io.h>
 #include <stdio.h>
 
 
 using namespace Konsole;
 
-static int blocksize = 0;
+static int blocksize = 4096;
 
 BlockArray::BlockArray()
         : size(0),
@@ -43,13 +50,13 @@ BlockArray::BlockArray()
         index(size_t(-1)),
         lastmap(0),
         lastmap_index(size_t(-1)),
-        lastblock(0), ion(-1),
+        lastblock(0), file(nullptr),
         length(0)
 {
     // lastmap_index = index = current = size_t(-1);
-    if (blocksize == 0) {
-        blocksize = ((sizeof(Block) / getpagesize()) + 1) * getpagesize();
-    }
+    //if (blocksize == 0) {
+    //    blocksize = ((sizeof(Block) / getpagesize()) + 1) * getpagesize();
+    //}
 
 }
 
@@ -71,13 +78,12 @@ size_t BlockArray::append(Block * block)
     }
 
     int rc;
-    rc = lseek(ion, current * blocksize, SEEK_SET);
-    if (rc < 0) {
+    if (!file->seek(current * blocksize)) {
         perror("HistoryBuffer::add.seek");
         setHistorySize(0);
         return size_t(-1);
     }
-    rc = write(ion, block, blocksize);
+    rc = file->write((char*)block, blocksize);
     if (rc < 0) {
         perror("HistoryBuffer::add.write");
         setHistorySize(0);
@@ -151,9 +157,12 @@ const Block * BlockArray::at(size_t i)
     Q_ASSERT(j < size);
     unmap();
 
-    Block * block = (Block *)mmap(0, blocksize, PROT_READ, MAP_PRIVATE, ion, j * blocksize);
+	lastmapFile = new QTemporaryFile;
+	lastmapFile->open();
+	lastmapFile->resize(blocksize);
+	Block * block = (Block *)lastmapFile->map(0, blocksize, QFileDevice::MapPrivateOption);
 
-    if (block == (Block *)-1) {
+    if (block == nullptr) {
         perror("mmap");
         return 0;
     }
@@ -167,7 +176,10 @@ const Block * BlockArray::at(size_t i)
 void BlockArray::unmap()
 {
     if (lastmap) {
-        int res = munmap((char *)lastmap, blocksize);
+        int res = lastmapFile->unmap((uchar *)lastmap);
+		lastmapFile->close();
+		delete lastmapFile;
+		lastmapFile = nullptr;
         if (res < 0) {
             perror("munmap");
         }
@@ -194,10 +206,11 @@ bool BlockArray::setHistorySize(size_t newsize)
     if (!newsize) {
         delete lastblock;
         lastblock = 0;
-        if (ion >= 0) {
-            close(ion);
+        if (file != nullptr) {
+            file->close();
+			delete file;
         }
-        ion = -1;
+        file = nullptr;
         current = size_t(-1);
         return true;
     }
@@ -207,13 +220,16 @@ bool BlockArray::setHistorySize(size_t newsize)
         if (!tmp) {
             perror("konsole: cannot open temp file.\n");
         } else {
-            ion = dup(fileno(tmp));
+            int ion = dup(fileno(tmp));
             if (ion<0) {
                 perror("konsole: cannot dup temp file.\n");
                 fclose(tmp);
-            }
+			} else {
+				file = new QFile();
+				file->open(ion, QIODevice::ReadWrite);
+			}
         }
-        if (ion < 0) {
+        if (file == nullptr) {
             return false;
         }
 
@@ -230,7 +246,7 @@ bool BlockArray::setHistorySize(size_t newsize)
         return false;
     } else {
         decreaseBuffer(newsize);
-        ftruncate(ion, length*blocksize);
+        file->resize(length*blocksize);
         size = newsize;
 
         return true;
@@ -274,7 +290,7 @@ void BlockArray::decreaseBuffer(size_t newsize)
     // The Block constructor could do somthing in future...
     char * buffer1 = new char[blocksize];
 
-    FILE * fion = fdopen(dup(ion), "w+b");
+    FILE * fion = fdopen(dup(file->handle()), "w+b");
     if (!fion) {
         delete [] buffer1;
         perror("fdopen/dup");
@@ -331,7 +347,7 @@ void BlockArray::increaseBuffer()
         runs = offset;
     }
 
-    FILE * fion = fdopen(dup(ion), "w+b");
+    FILE * fion = fdopen(dup(file->handle()), "w+b");
     if (!fion) {
         perror("fdopen/dup");
         delete [] buffer1;
