@@ -105,7 +105,7 @@ Session::Session(QObject* parent) :
     connect( _emulation,SIGNAL(lockPtyRequest(bool)), _target,SLOT(lockPty(bool)) );
     connect( _emulation,SIGNAL(useUtf8Request(bool)), _target,SLOT(setUtf8Mode(bool)) );
 
-    connect( _target,SIGNAL(finished()), this, SLOT(done()) );
+    connect( _target,SIGNAL(finished(int)), this, SLOT(done(int)) );
     // not in kprocess anymore connect( _shellProcess,SIGNAL(done(int)), this, SLOT(done(int)) );
 
     //setup timer for monitoring session activity
@@ -523,8 +523,15 @@ void Session::done(int exitStatus)
         return;
     }
 
-    if (_wantedClose) emit finished();
-
+    QString message;
+    if (!_wantedClose) {
+		if (exitStatus != 0) {
+			message.sprintf("Session '%s' exited with status %d.",
+				_nameTitle.toUtf8().data(), exitStatus);
+			auto bs = message.toUtf8();
+			emit onReceiveBlock(bs.constData(), bs.size());
+		}
+    } else emit finished();
 }
 
 Emulation * Session::emulation() const

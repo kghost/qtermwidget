@@ -40,7 +40,7 @@ public:
 	* Constructor
 	*/
 	TargetPtyTcp() {}
-	virtual ~TargetPtyTcp() {}
+	virtual ~TargetPtyTcp();
 
 	virtual int start(Emulation* _emulation,
 		const QStringList& environment,
@@ -91,17 +91,6 @@ public:
 	* @param length Length of @p buffer.
 	*/
     virtual void sendData(const char* buffer, int length);
-
-  signals:
-
-	/**
-	* Emitted when a new block of data is received from
-	* the teletype.
-	*
-	* @param buffer Pointer to the data received.
-	* @param length Length of @p buffer
-	*/
-	void receivedData(const char* buffer, int length);
 
   private:
 	QTcpSocket s;

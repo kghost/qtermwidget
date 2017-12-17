@@ -104,7 +104,7 @@ public:
 	*/
 	void receivedData(const char* buffer, int length);
 
-	void finished();
+	void finished(int);
 };
 }
 

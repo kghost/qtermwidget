@@ -167,6 +167,16 @@ lxqt_translate_ts(QTERMWIDGET_QM
 )
 
 add_library(${QTERMWIDGET_LIBRARY_NAME} SHARED ${SRCS} ${MOCS} ${UI_SRCS} ${QTERMWIDGET_QM})
+set_property(TARGET ${QTERMWIDGET_LIBRARY_NAME} PROPERTY CXX_STANDARD 17)
+# force Unicode over Multi-byte
+if(MSVC)
+target_compile_definitions(${QTERMWIDGET_LIBRARY_NAME}
+    PRIVATE
+        "-D_UNICODE"
+        "-DUNICODE"
+)
+endif()
+
 target_link_libraries(${QTERMWIDGET_LIBRARY_NAME} Qt5::Widgets)
 target_link_libraries(${QTERMWIDGET_LIBRARY_NAME} Qt5::Network)
 set_target_properties( ${QTERMWIDGET_LIBRARY_NAME} PROPERTIES
