@@ -39,7 +39,7 @@ public:
 	/**
 	* Constructor
 	*/
-	TargetPtyTcp() {}
+	TargetPtyTcp() : size(80, 25) {}
 	virtual ~TargetPtyTcp();
 
 	virtual int start(Emulation* _emulation,
@@ -96,6 +96,7 @@ public:
 	QTcpSocket s;
 	bool connected = false;
 	bool started = false;
+	QSize size;
   private slots:
     void stateChanged(QAbstractSocket::SocketState socketState);
 	void readReady();

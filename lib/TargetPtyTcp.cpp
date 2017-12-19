@@ -56,6 +56,8 @@ bool TargetPtyTcp::flowControlEnabled() const {
 	return false;
 }
 void TargetPtyTcp::setWindowSize(int lines, int cols) {
+	size.setHeight(lines);
+	size.setWidth(cols);
 	Pty::WinSize win;
 	win.cols = cols;
 	win.rows = lines;
@@ -74,7 +76,7 @@ void TargetPtyTcp::setWindowSize(int lines, int cols) {
 }
 
 QSize TargetPtyTcp::windowSize() const {
-	return QSize();
+	return size;
 }
 void TargetPtyTcp::setErase(char erase) {}
 char TargetPtyTcp::erase() const {
