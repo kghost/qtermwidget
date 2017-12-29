@@ -177,8 +177,8 @@ target_compile_definitions(${QTERMWIDGET_LIBRARY_NAME}
 )
 endif()
 
-target_link_libraries(${QTERMWIDGET_LIBRARY_NAME} Qt5::Widgets)
-target_link_libraries(${QTERMWIDGET_LIBRARY_NAME} Qt5::Network)
+target_link_libraries(${QTERMWIDGET_LIBRARY_NAME} LINK_PUBLIC Qt5::Widgets)
+target_link_libraries(${QTERMWIDGET_LIBRARY_NAME} LINK_PUBLIC Qt5::Network)
 set_target_properties( ${QTERMWIDGET_LIBRARY_NAME} PROPERTIES
                        SOVERSION ${QTERMWIDGET_VERSION_MAJOR}
                        VERSION ${QTERMWIDGET_VERSION}
@@ -206,7 +206,7 @@ if (QTERMWIDGET_USE_UTEMPTER)
         target_compile_definitions(${QTERMWIDGET_LIBRARY_NAME} PRIVATE
                 "HAVE_UTEMPTER"
         )
-        target_link_libraries(${QTERMWIDGET_LIBRARY_NAME} ulog)
+        target_link_libraries(${QTERMWIDGET_LIBRARY_NAME} LINK_PUBLIC ulog)
     endif()
 endif()
 
@@ -215,7 +215,7 @@ if (utf8proc_FOUND)
         PRIVATE
             "HAVE_UTF8PROC"
     )
-    target_link_libraries(${QTERMWIDGET_LIBRARY_NAME} utf8proc)
+    target_link_libraries(${QTERMWIDGET_LIBRARY_NAME} LINK_PRIVATE utf8proc)
     string(APPEND PKG_CONFIG_REQ ", libutf8proc")
 endif()
 
