@@ -52,7 +52,7 @@ using namespace Konsole;
 
 Emulation::Emulation() :
   _currentScreen(0),
-  _codec(0),
+  _codec(QTextCodec::codecForLocale()),
   _decoder(0),
   _keyTranslator(0),
   _usesMouse(false),
@@ -165,6 +165,13 @@ void Emulation::setCodec(const QTextCodec * qtc)
   _decoder = _codec->makeDecoder();
 
   emit useUtf8Request(utf8());
+}
+
+void Emulation::resetCodec()
+{
+  // reset decoder state, since codec doesn't contain any state, just ignore it
+  delete _decoder;
+  _decoder = _codec->makeDecoder();
 }
 
 void Emulation::setCodec(EmulationCodec codec)
