@@ -44,7 +44,7 @@ set(QTERMWIDGET_LIBRARY_NAME qtermwidget5)
 option(USE_UTF8PROC "Use libutf8proc for better Unicode support. Default OFF" OFF)
 
 if(USE_UTF8PROC)
-    find_package(Utf8Proc REQUIRED)
+    find_package(utf8proc REQUIRED)
 endif()
 
 # main library
@@ -210,18 +210,12 @@ if (QTERMWIDGET_USE_UTEMPTER)
     endif()
 endif()
 
-if (UTF8PROC_FOUND)
+if (utf8proc_FOUND)
     target_compile_definitions(${QTERMWIDGET_LIBRARY_NAME}
         PRIVATE
             "HAVE_UTF8PROC"
     )
-    target_include_directories(${QTERMWIDGET_LIBRARY_NAME}
-        PRIVATE
-            ${UTF8PROC_INCLUDE_DIR}
-    )
-    target_link_libraries(${QTERMWIDGET_LIBRARY_NAME}
-        ${UTF8PROC_LIBRARIES}
-    )
+    target_link_libraries(${QTERMWIDGET_LIBRARY_NAME} utf8proc)
     string(APPEND PKG_CONFIG_REQ ", libutf8proc")
 endif()
 
