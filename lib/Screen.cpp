@@ -421,7 +421,7 @@ void Screen::updateEffectiveRendition()
     }
 
     if (currentRendition & RE_BOLD)
-        effectiveForeground.toggleIntensive();
+        effectiveForeground.setIntensive();
 }
 
 void Screen::copyFromHistory(Character* dest, int startLine, int count) const
@@ -646,7 +646,7 @@ void Screen::checkSelection(int from, int to)
         clearSelection();
 }
 
-void Screen::displayCharacter(unsigned short c)
+void Screen::displayCharacter(wchar_t c)
 {
     // Note that VT100 does wrapping BEFORE putting the character.
     // This has impact on the assumption of valid cursor positions.
