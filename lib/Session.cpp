@@ -236,20 +236,20 @@ void Session::removeView(TerminalDisplay * widget)
 
 void Session::run()
 {
-    _target->setFlowControlEnabled(_flowControl);
+    QStringList _environment;
 
     // this is not strictly accurate use of the COLORFGBG variable.  This does not
     // tell the terminal exactly which colors are being used, but instead approximates
     // the color scheme as "black on white" or "white on black" depending on whether
     // the background color is deemed dark or not
-    auto backgroundColorHint = QStringList(_hasDarkBackground ? "COLORFGBG=15;0" : "COLORFGBG=0;15");
+    QString backgroundColorHint = _hasDarkBackground ? QLatin1String("COLORFGBG=15;0") : QLatin1String("COLORFGBG=0;15");
 
     /* if we do all the checking if this shell exists then we use it ;)
      * Dont know about the arguments though.. maybe youll need some more checking im not sure
      * However this works on Arch and FreeBSD now.
      */
     int result = _target->start(_emulation,
-                                backgroundColorHint,
+                                _environment << backgroundColorHint,
                                 windowId());
 
     if (result < 0) {
@@ -284,7 +284,7 @@ void Session::setUserTitle( int what, const QString & caption )
     }
 
     if (what == 11) {
-        QString colorString = caption.section(';',0,0);
+        QString colorString = caption.section(QLatin1Char(';'),0,0);
         //qDebug() << __FILE__ << __LINE__ << ": setting background colour to " << colorString;
         QColor backColor = QColor(colorString);
         if (backColor.isValid()) { // change color via \033]11;Color\007
@@ -311,7 +311,7 @@ void Session::setUserTitle( int what, const QString & caption )
 
     if (what == 31) {
         QString cwd=caption;
-        cwd=cwd.replace( QRegExp("^~"), QDir::homePath() );
+        cwd=cwd.replace( QRegExp(QLatin1String("^~")), QDir::homePath() );
         emit openUrlRequest(cwd);
     }
 
@@ -518,7 +518,7 @@ QString Session::profileKey() const
 void Session::done(int exitStatus)
 {
     if (!_autoClose) {
-        _userTitle = ("This session is done. Finished");
+        _userTitle = QString::fromLatin1("This session is done. Finished");
         emit titleChanged();
         return;
     }

@@ -64,7 +64,7 @@ Session *TermWidgetImpl::createSession(QWidget* parent)
 {
     Session *session = new Session(parent);
 
-    session->setTitle(Session::NameRole, "QTermWidget");
+    session->setTitle(Session::NameRole, QLatin1String("QTermWidget"));
 
     /* Thats a freaking bad idea!!!!
      * /bin/bash is not there on every system
@@ -75,11 +75,11 @@ Session *TermWidgetImpl::createSession(QWidget* parent)
      */
     //session->setProgram("/bin/bash");
 
-    session->setProgram(getenv("SHELL"));
+    session->setProgram(QString::fromLocal8Bit(qgetenv("SHELL")));
 
 
 
-    QStringList args("");
+    QStringList args = QStringList(QString());
     session->setArguments(args);
     session->setAutoClose(true);
 
@@ -90,7 +90,7 @@ Session *TermWidgetImpl::createSession(QWidget* parent)
 
     session->setDarkBackground(true);
 
-    session->setKeyBindings("");
+    session->setKeyBindings(QString());
     return session;
 }
 
@@ -201,15 +201,11 @@ QSize QTermWidget::sizeHint() const
 
 void QTermWidget::setTerminalSizeHint(bool on)
 {
-    if (!m_impl->m_terminalDisplay)
-        return;
     m_impl->m_terminalDisplay->setTerminalSizeHint(on);
 }
 
 bool QTermWidget::terminalSizeHint()
 {
-    if (!m_impl->m_terminalDisplay)
-        return true;
     return m_impl->m_terminalDisplay->terminalSizeHint();
 }
 
@@ -242,7 +238,7 @@ void QTermWidget::init(int startnow)
 
     for (const QString& dir : dirs) {
         qDebug() << "Trying to load translation file from dir" << dir;
-        if (m_translator->load(QLocale::system(), "qtermwidget", "_", dir)) {
+        if (m_translator->load(QLocale::system(), QLatin1String("qtermwidget"), QLatin1String(QLatin1String("_")), dir)) {
             qApp->installTranslator(m_translator);
             qDebug() << "Translations found in" << dir;
             break;
@@ -293,7 +289,7 @@ void QTermWidget::init(int startnow)
 //    m_impl->m_terminalDisplay->setSize(80, 40);
 
     QFont font = QApplication::font();
-    font.setFamily("Monospace");
+    font.setFamily(QLatin1String("Monospace"));
     font.setPointSize(10);
     font.setStyleHint(QFont::TypeWriter);
     setTerminalFont(font);
@@ -320,31 +316,21 @@ QTermWidget::~QTermWidget()
 
 void QTermWidget::setTerminalFont(const QFont &font)
 {
-    if (!m_impl->m_terminalDisplay)
-        return;
     m_impl->m_terminalDisplay->setVTFont(font);
 }
 
 QFont QTermWidget::getTerminalFont()
 {
-    if (!m_impl->m_terminalDisplay)
-        return QFont();
     return m_impl->m_terminalDisplay->getVTFont();
 }
 
 void QTermWidget::setTerminalOpacity(qreal level)
 {
-    if (!m_impl->m_terminalDisplay)
-        return;
-
     m_impl->m_terminalDisplay->setOpacity(level);
 }
 
 void QTermWidget::setTerminalBackgroundImage(QString backgroundImage)
 {
-    if (!m_impl->m_terminalDisplay)
-        return;
-
     m_impl->m_terminalDisplay->setBackgroundImage(backgroundImage);
 }
 
@@ -371,7 +357,7 @@ QString QTermWidget::workingDirectory()
     // Christian Surlykke: On linux we could look at /proc/<pid>/cwd which should be a link to current
     // working directory (<pid>: process id of the shell). I don't know about BSD.
     // Maybe we could just offer it when running linux, for a start.
-    QDir d(QString("/proc/%1/cwd").arg(getShellPID()));
+    QDir d(QString::fromLatin1("/proc/%1/cwd").arg(getShellPID()));
     if (!d.exists())
     {
         qDebug() << "Cannot find" << d.dirName();
@@ -455,8 +441,6 @@ void QTermWidget::addCustomColorSchemeDir(const QString& custom_dir)
 
 void QTermWidget::setSize(const QSize &size)
 {
-    if (!m_impl->m_terminalDisplay)
-        return;
     m_impl->m_terminalDisplay->setSize(size.width(), size.height());
 }
 
@@ -470,15 +454,11 @@ void QTermWidget::setHistorySize(int lines)
 
 void QTermWidget::setScrollBarPosition(ScrollBarPosition pos)
 {
-    if (!m_impl->m_terminalDisplay)
-        return;
     m_impl->m_terminalDisplay->setScrollBarPosition(pos);
 }
 
 void QTermWidget::scrollToEnd()
 {
-    if (!m_impl->m_terminalDisplay)
-        return;
     m_impl->m_terminalDisplay->scrollToEnd();
 }
 
@@ -521,9 +501,6 @@ void QTermWidget::pasteSelection()
 
 void QTermWidget::setZoom(int step)
 {
-    if (!m_impl->m_terminalDisplay)
-        return;
-
     QFont font = m_impl->m_terminalDisplay->getVTFont();
 
     font.setPointSize(font.pointSize() + step);
@@ -669,29 +646,21 @@ QList<QAction*> QTermWidget::filterActions(const QPoint& position)
 
 void QTermWidget::setKeyboardCursorShape(KeyboardCursorShape shape)
 {
-    if (!m_impl->m_terminalDisplay)
-        return;
     m_impl->m_terminalDisplay->setKeyboardCursorShape(shape);
 }
 
 void QTermWidget::setBlinkingCursor(bool blink)
 {
-    if (!m_impl->m_terminalDisplay)
-        return;
     m_impl->m_terminalDisplay->setBlinkingCursor(blink);
 }
 
 void QTermWidget::setBidiEnabled(bool enabled)
 {
-    if (!m_impl->m_terminalDisplay)
-        return;
     m_impl->m_terminalDisplay->setBidiEnabled(enabled);
 }
 
 bool QTermWidget::isBidiEnabled()
 {
-    if (!m_impl->m_terminalDisplay)
-        return false; // Default value
     return m_impl->m_terminalDisplay->isBidiEnabled();
 }
 
@@ -726,4 +695,14 @@ void QTermWidget::cursorChanged(Konsole::Emulation::KeyboardCursorShape cursorSh
     // TODO: A switch to enable/disable DECSCUSR?
     setKeyboardCursorShape(cursorShape);
     setBlinkingCursor(blinkingCursorEnabled);
+}
+
+void QTermWidget::setMargin(int margin)
+{
+    m_impl->m_terminalDisplay->setMargin(margin);
+}
+
+int QTermWidget::getMargin() const
+{
+    return m_impl->m_terminalDisplay->margin();
 }

@@ -40,12 +40,13 @@ TargetPtyTcp::~TargetPtyTcp() {
 int TargetPtyTcp::start(Emulation* _emulation,
 	const QStringList& environment,
 	ulong winid) {
+	_environment = environment;
 
 	connect(&s, &QAbstractSocket::stateChanged, this, &TargetPtyTcp::stateChanged);
 	connect(&s, &QIODevice::readyRead, this, &TargetPtyTcp::readReady);
 
 	started = true;
-	s.connectToHost("127.0.0.1", TargetPtyTcpPort);
+	s.connectToHost(QString::fromUtf8("127.0.0.1"), TargetPtyTcpPort);
 
 	return 0;
 }
@@ -114,6 +115,13 @@ void TargetPtyTcp::stateChanged(QAbstractSocket::SocketState socketState) {
 
 		Pty::Exec exec;
 		exec.envs.push_back({ "TERM", "xterm" });
+		for (const auto& e : _environment)
+		{
+			auto kv = e.split(U'=');
+			exec.envs.push_back({ kv[0].toStdString(), kv[1].toStdString() });
+		}
+		_environment.clear();
+
 		auto size = exec.space();
 
 		Pty::Message msg;

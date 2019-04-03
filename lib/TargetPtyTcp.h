@@ -94,6 +94,7 @@ public:
 
   private:
 	QTcpSocket s;
+	QStringList _environment;
 	bool connected = false;
 	bool started = false;
 	QSize size;
